@@ -7,8 +7,9 @@ from db.model import Nfe
 from lxml import etree
 import os
 from celery.utils.log import get_task_logger
+from sefaz.distNfe import distNfe
 
-logger = logging.getLogger("uvicorn")
+logger = get_task_logger(__name__)
 
 app = Celery('tasks', backend=os.environ["BACKEND_URL"], broker=os.environ["BROKER_URL"])
 cwd = os.getcwd()
@@ -23,17 +24,8 @@ app.conf.update(
 
 @celery.signals.after_setup_logger.connect
 def on_after_setup_logger(**kwargs):
-    # c_handler = logging.StreamHandler()
     logger.setLevel(logging.INFO)
-    # logger.addHandler(c_handler)
-    # c_handler.setFormatter(logging.Formatter('%(name)s %(levelname)s - %(message)s'))
-    # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # # add filehandler
-    # fh = logging.FileHandler('logs.log')
-    # fh.setLevel(logging.DEBUG)
-    # fh.setFormatter(formatter)
-    # logger.addHandler(fh)
 
 @app.on_after_configure.connect
 def setup_periodic_tasks(sender, **kwargs):
@@ -42,13 +34,17 @@ def setup_periodic_tasks(sender, **kwargs):
 
 @app.task
 def novas_notas():
+    CODIGO_REJEICAO = 201
     with open(os.path.join(cwd, "celery", 'ultNsu.txt'), "r") as f:
         nsu = int(f.readline().strip())
     ult_nsu = nsu
     max_nsu = float("inf")
     while ult_nsu < max_nsu:
-        ult_nsu, max_nsu, xmls = distNfe('', ult_nsu, True, False)
-        if ult_nsu != 0:
+        ult_nsu, max_nsu, codigo, xmls = distNfe('', ult_nsu, True, False)
+        if codigo >= CODIGO_REJEICAO:
+            logger.warning("ALGUM ERRO OCORREU SEFAZ. CODIGO DE RETORNO: %s", codigo)
+        if ult_nsu != 0 and codigo < CODIGO_REJEICAO:
+            
             write_ult_nsu(ult_nsu)
             for xml in xmls:
                 nota = get_tags(xml_str=xml)
@@ -69,6 +65,12 @@ def write_ult_nsu(nsu: int):
 
 @app.task
 def test(name):
-    print('HELLO JNKJCNS')
     logger.info('HELLO JNKJCNS')
     return name
+
+@app.task
+def test_nota():
+    chave = "35230624614269000126550010003386141336538648"
+    ult_nsu, max_nsu, codigo, xmls = distNfe(chave, 0, is_nsu=False, is_nsu_especifico=False)
+    logger.info("ULT_NSU: %s  MAX_NSU: %s", ult_nsu, max_nsu)
+    return ult_nsu, xmls

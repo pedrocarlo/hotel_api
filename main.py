@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, BackgroundTasks
 import uvicorn
 # from db.sql import insert_xml_from_folder
-from hotel_api.tasks import test
+from hotel_api.tasks import test, test_nota
 import logging
 
 
@@ -23,7 +23,9 @@ cwd = os.getcwd()
 @app.get("/", status_code=202, tags=["info"])
 async def root():
     logger.info('Calling /')
-    logger.info("%s", test.delay('HELLO WORLD').get())
+    ult, xmls = test_nota.delay().get()
+    logger.info("%s", xmls)
+    # logger.info("%s", ult_nsu)
     return {"message": "Adding files to database"}
 
 
