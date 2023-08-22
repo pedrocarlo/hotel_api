@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, BackgroundTasks
 import uvicorn
 # from db.sql import insert_xml_from_folder
-from hotel_api.tasks import test, test_nota
+from hotel_api.tasks import novas_notas, test, test_nota
 import logging
 
 
@@ -20,13 +20,31 @@ app = FastAPI()
 cwd = os.getcwd()
 
 
-@app.get("/", status_code=202, tags=["info"])
-async def root():
-    logger.info('Calling /')
-    ult, xmls = test_nota.delay().get()
-    logger.info("%s", xmls)
-    # logger.info("%s", ult_nsu)
-    return {"message": "Adding files to database"}
+# @app.get("/", status_code=202, tags=["info"])
+# async def root():
+#     logger.info('Calling /')
+#     ult, xmls = test_nota.delay().get()
+#     logger.info("%s", xmls)
+#     # logger.info("%s", ult_nsu)
+#     return {"message": "Adding files to database"}
+
+# @app.get("/novas_notas", status_code=202, tags=["info"])
+# async def novas():
+#     logger.info('Calling /novas_notas')
+#     ult, xmls = novas_notas.delay().get()
+#     logger.info("XMLS: \n%s", xmls)
+#     # logger.info("%s", ult_nsu)
+#     return {"message": "getting novas notas to database"}
+
+# @app.get("/manifestar", status_code=202, tags=["info"])
+# async def novas():
+#     logger.info('Calling /novas_notas')
+#     ult, xmls = novas_notas.delay().get()
+#     logger.info("XMLS: \n%s", xmls)
+#     # logger.info("%s", ult_nsu)
+#     return {"message": "getting novas notas to database"}
+
+
 
 
 if __name__ == "__main__":
