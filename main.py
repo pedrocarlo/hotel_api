@@ -20,29 +20,30 @@ app = FastAPI()
 cwd = os.getcwd()
 
 
-# @app.get("/", status_code=202, tags=["info"])
-# async def root():
-#     logger.info('Calling /')
-#     ult, xmls = test_nota.delay().get()
-#     logger.info("%s", xmls)
-#     # logger.info("%s", ult_nsu)
-#     return {"message": "Adding files to database"}
+@app.get("/", status_code=202, tags=["info"])
+async def root():
+    logger.info('Calling /')
+    ult_nsu, xmls, notas = test.delay().get()
+    # logger.info("%s", notas)
+    # logger.info("%s", ult_nsu)
+    return {"message": "Adding files to database"}
 
-# @app.get("/novas_notas", status_code=202, tags=["info"])
-# async def novas():
-#     logger.info('Calling /novas_notas')
-#     ult, xmls = novas_notas.delay().get()
-#     logger.info("XMLS: \n%s", xmls)
-#     # logger.info("%s", ult_nsu)
-#     return {"message": "getting novas notas to database"}
+@app.get("/novas_notas", status_code=202, tags=["info"])
+async def novas():
+    logger.info('Calling /novas_notas')
+    ult, xmls, notas = novas_notas.delay().get()
+    logger.info("XMLS: \n%s", xmls)
+    # logger.info("%s", ult_nsu)
+    return {"message": "getting novas notas to database"}
 
 # @app.get("/manifestar", status_code=202, tags=["info"])
 # async def novas():
 #     logger.info('Calling /novas_notas')
-#     ult, xmls = novas_notas.delay().get()
+#     ult, xmls, notas = novas_notas.delay().get()
 #     logger.info("XMLS: \n%s", xmls)
 #     # logger.info("%s", ult_nsu)
 #     return {"message": "getting novas notas to database"}
+
 
 
 
