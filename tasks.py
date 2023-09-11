@@ -176,7 +176,7 @@ async def manifest_start_month():
     day = today.day
     month = today.month
     year = today.year
-    if day == 1:
+    if day == 1 or day == 15:
         return await manifestar(year, month)
     return []
 
@@ -190,7 +190,7 @@ async def manifestar(year: int, month: int):
     session = get_session()
     for nota in notas:
         chave = nota.chave
-        await manifestNfe(chave, CNPJ)
+        manifestNfe(chave, CNPJ)
         try:
             nota.manifestando = True
             session.merge(nota)

@@ -63,7 +63,7 @@ async def manifestar_notas(year: int = None, month: int = None):
         month = curr_month
     notas = await manifestar(year, month)
     logger.info("Notas: %s", notas)
-    return {"202": "Accepted"}
+    return {"Message": "Accepted"}
 
 
 @app.get("/filtrar_notas", status_code=202, tags=["info"])
@@ -90,7 +90,7 @@ async def completa():
 
 
 @app.get("/test_chave", status_code=202, tags=["info"])
-async def completa(chave: str):
+async def test_chave(chave: str):
     # chave = "35230871998819000138550010000022771002245280"
     return test_get_chave(chave)
 
