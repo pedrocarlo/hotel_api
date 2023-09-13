@@ -5,12 +5,22 @@ import celery
 from sefaz.distNfe import distNfe
 from sefaz.manifestarNfe import manifestNfe
 from sefaz.xml_parser import get_tags
+from sefaz.utils import get_certificados
 from db.model import Nfe
-from db.sql import Session, get_by_date, get_manifestando, get_session
+from db.sql import (
+    Session,
+    get_by_date,
+    get_manifestando,
+    get_session,
+    add_certificados,
+    read_ult_nsu,
+    write_ult_nsu,
+)
 from lxml import etree
 import os
 from celery.utils.log import get_task_logger
-from sefaz.distNfe import distNfe
+
+certificados = get_certificados()
 
 logger = get_task_logger(__name__)
 
@@ -50,101 +60,83 @@ def setup_periodic_tasks(sender, **kwargs):
     sender.add_periodic_task(
         h1_3min, manifest_start_month.s(), name="Manifestar mes passado"
     )
+    # sender.add_periodic_task(
+    #     3600, novos_certificados.s(), name="Ler novos certificados"
+    # )
 
 
 @app.task
 def novas_notas():
-    CNPJ = "51548782000139"
-    with open(os.path.join(cwd, "celery", "ultNSU.txt"), "r") as f:
-        nsu = int(f.readline().strip())
-    ult_nsu = nsu
-    max_nsu = float("inf")
     xmls = []
     notas = []
-    while ult_nsu < max_nsu:
-        ult_nsu, max_nsu, codigo, xmls = distNfe(
-            "", ult_nsu, is_nsu=True, is_nsu_especifico=False
-        )
-        logger.info("ULT_NSU: %s MAX_NSU: %s CODIGO_RET: %s", ult_nsu, max_nsu, codigo)
-        if codigo >= CODIGO_REJEICAO:
-            logger.warning("ALGUM ERRO OCORREU SEFAZ. CODIGO DE RETORNO: %s", codigo)
-        if ult_nsu != 0 and codigo < CODIGO_REJEICAO:
-            write_ult_nsu(ult_nsu)
-            for xml in xmls:
-                nota = get_tags(xml_str=xml)
-                notas.append(nota)
-                path = write_xml(xml, nota)
-                if nota is not None:
-                    session = get_session()
-                    try:
-                        logger.warning("NOTA REPR: %s", repr(nota))
-                        session.merge(nota)
-                        session.commit()
-                        ciencia_emissao = 2
-                        manifestNfe(nota.chave, CNPJ, ciencia_emissao)
-                    finally:
-                        session.close()
-                    # with Session() as session:
-                    #     session.add(nota)
-    return ult_nsu, xmls, notas
-
-
-@app.task
-def test():
-    CODIGO_REJEICAO = 201
-    ult_nsu = 4230
-    chave = "35230600221990000198550010001882981020222272"
-    max_nsu = float("inf")
-    xmls = []
-    notas = []
-    ult_nsu, max_nsu, codigo, xmls = distNfe(
-        chave, ult_nsu, is_nsu=False, is_nsu_especifico=True
-    )
-    logger.info("ULT_NSU: %s MAX_NSU: %s CODIGO_RET: %s", ult_nsu, max_nsu, codigo)
-    if codigo >= CODIGO_REJEICAO:
-        logger.warning("ALGUM ERRO OCORREU SEFAZ. CODIGO DE RETORNO: %s", codigo)
-    if ult_nsu != 0 and codigo < CODIGO_REJEICAO:
-        for xml in xmls:
-            nota = get_tags(xml_str=xml)
-            notas.append(nota)
-            path = write_xml(xml, nota)
-            print("PAth: ", path)
-            logger.warning("NOTA REPR: %s", repr(nota))
-            if nota is not None:
-                session = get_session()
-                try:
-                    print("ADDING NOTA")
-                    print(repr(nota))
-                    session.add(nota)
-                    session.commit()
-                finally:
-                    session.close()
-                # with Session() as session:
-                #     session.add(nota)
+    session = get_session()
+    for cert in certificados:
+        cnpj = cert.cnpj
+        nsu = read_ult_nsu(session, cnpj=cnpj)
+        ult_nsu = nsu
+        max_nsu = float("inf")
+        while ult_nsu < max_nsu:
+            ult_nsu, max_nsu, codigo, xmls = distNfe(
+                "", ult_nsu, is_nsu=True, is_nsu_especifico=False, Certificado=cert
+            )
+            logger.info(
+                "ULT_NSU: %s MAX_NSU: %s CODIGO_RET: %s", ult_nsu, max_nsu, codigo
+            )
+            if codigo >= CODIGO_REJEICAO:
+                logger.warning(
+                    "ALGUM ERRO OCORREU NO SEFAZ. CODIGO DE RETORNO: %s", codigo
+                )
+            if ult_nsu != 0 and codigo < CODIGO_REJEICAO:
+                for xml in xmls:
+                    nota = get_tags(xml_str=xml)
+                    notas.append(nota)
+                    path = write_xml(xml, nota)
+                    if nota is not None:
+                        if nota.cnpj_comprador is None:
+                            nota.cnpj_comprador = cnpj
+                        session = get_session()
+                        try:
+                            logger.warning("NOTA REPR: %s", repr(nota))
+                            session.merge(nota)
+                            session.commit()
+                            ciencia_emissao = 2
+                            manifestNfe(nota.chave, ciencia_emissao, Certificado=cert)
+                        finally:
+                            session.close()
+                        # with Session() as session:
+                        #     session.add(nota)
+                write_ult_nsu(session, ult_nsu, cnpj)
+                
     return ult_nsu, xmls, notas
 
 
 @app.task
 def download_completa():
-    session = get_session()
-    session.expire_on_commit = False
-    notas = get_manifestando(session)
     completos = []
-    for nota in notas[:20]:
-        ult_nsu, max_nsu, codigo, xmls = distNfe(
-            nota.chave, 0, is_nsu=False, is_nsu_especifico=False
-        )
-        if codigo < CODIGO_REJEICAO:
-            for xml in xmls:
-                completos.append(xml)
-                new_nota = get_tags(xml_str=xml)
-                path = write_xml(xml, new_nota)
-                try:
-                    logger.warning("NOTA REPR: %s", repr(new_nota))
-                    session.merge(new_nota)
-                    session.commit()
-                finally:
-                    session.close()
+    for cert in certificados:
+        cnpj = cert.cnpj
+
+        session = get_session()
+        session.expire_on_commit = False
+        notas = get_manifestando(session)
+
+        for nota in notas[:20]:
+            ult_nsu, max_nsu, codigo, xmls = distNfe(
+                nota.chave, 0, is_nsu=False, is_nsu_especifico=False, Certificado=cert
+            )
+            if codigo < CODIGO_REJEICAO:
+                for xml in xmls:
+                    completos.append(xml)
+                    new_nota = get_tags(xml_str=xml)
+                    if new_nota.cnpj_comprador is None:
+                        new_nota.cnpj_comprador = cnpj
+                    path = write_xml(xml, new_nota)
+                    try:
+                        logger.warning("NOTA REPR: %s", repr(new_nota))
+                        session.merge(new_nota)
+                        session.commit()
+                    finally:
+                        session.close()
     return completos
 
 
@@ -190,14 +182,24 @@ async def manifestar(year: int, month: int):
     session = get_session()
     for nota in notas:
         chave = nota.chave
-        manifestNfe(chave, CNPJ)
+        cnpj = nota.cnpj_comprador
+        for cert in certificados:
+            if cert.cnpj == cnpj:
+                certificado = cert
+        manifestNfe(chave, Certificado=certificado)  # TODO edit here to add certificate
         try:
             nota.manifestando = True
             session.merge(nota)
             session.commit()
         finally:
             session.close()
+
     return notas
+
+
+@app.task
+def novos_certificados():
+    add_certificados(get_session())
 
 
 def write_xml(xml: str, nota: Nfe = None):
@@ -212,6 +214,11 @@ def write_xml(xml: str, nota: Nfe = None):
     return path
 
 
-def write_ult_nsu(nsu: int):
-    with open(os.path.join(cwd, "celery", "ultNSU.txt"), "w") as f:
-        f.write(str(nsu))
+# def write_ult_nsu(nsu: int, cnpj: str):
+#     with open(os.path.join(cwd, "celery", "nsu", f"nsu_{cnpj}.txt"), "w") as f:
+#         f.write(str(nsu))
+
+
+# def read_ult_nsu(nsu: int, cnpj: str):
+#     with open(os.path.join(cwd, "celery", "nsu", f"nsu_{cnpj}.txt"), "r") as f:
+#         return f.read()

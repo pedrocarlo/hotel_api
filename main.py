@@ -5,7 +5,7 @@ from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 import uvicorn
 from db.schemas import NfeQueryParams
-from db.sql import get_general, get_session
+from db.sql import get_general, get_session, insert_xml_from_folder
 
 # from db.schemas import NfeQueryParams
 
@@ -14,7 +14,7 @@ from hotel_api.tasks import (
     download_completa,
     manifestar,
     novas_notas,
-    test,
+    novos_certificados,
     test_get_chave,
 )
 import logging
@@ -93,6 +93,18 @@ async def completa():
 async def test_chave(chave: str):
     # chave = "35230871998819000138550010000022771002245280"
     return test_get_chave(chave)
+
+
+@app.get("/add_certificados", status_code=202, tags=["info"])
+async def certificados():
+    novos_certificados()
+
+
+@app.get("/atualizar_notas_baixadas", status_code=202, tags=["info"])
+async def atualizad_notas():
+    folders = ["resumida", "completa"]
+    for folder in folders:
+        insert_xml_from_folder(os.path.join(os.getcwd(), "xml", folder))
 
 
 if __name__ == "__main__":
