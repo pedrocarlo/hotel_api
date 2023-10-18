@@ -27,7 +27,7 @@ logger = get_task_logger(__name__)
 app = Celery(
     "tasks", backend=os.environ["BACKEND_URL"], broker=os.environ["BROKER_URL"]
 )
-cwd = os.getcwd()
+cwd = os.getcxwd()
 
 app.conf.update(
     task_serializer="json",
