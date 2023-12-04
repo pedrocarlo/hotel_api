@@ -2,10 +2,16 @@ from datetime import datetime
 import os
 from typing import Annotated, Optional
 from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from db.schemas import NfeQueryParams
-from db.sql import get_general, get_session, insert_xml_from_folder
+from db.sql import (
+    get_general,
+    get_session,
+    insert_xml_from_folder,
+    update_notas_desbravador,
+)
 
 # from db.schemas import NfeQueryParams
 
@@ -29,9 +35,26 @@ logger = logging.getLogger("uvicorn")
 # logger.setLevel(logging.INFO)
 # c_handler.setLevel(logging.INFO)
 
-
 app = FastAPI()
 cwd = os.getcwd()
+
+origins = [
+    "http://pedro.muniz.carlo-fuji.nord",
+    "https://pedro.muniz.carlo-fuji.nord",
+    "http://pedro.muniz.carlo-fuji.nord:5173",
+    "https://pedro.muniz.carlo-fuji.nord:5173",
+    "http://localhost:5173",
+]
+
+orgins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # @app.get("/", status_code=202, tags=["info"])
@@ -43,7 +66,7 @@ cwd = os.getcwd()
 #     return {"message": "Adding files to database"}
 
 
-@app.get("/novas_notas", status_code=202, tags=["info"])
+# @app.get("/novas_notas", status_code=202, tags=["info"])
 async def novas():
     logger.info("Calling /novas_notas")
     ult, xmls, notas = novas_notas.delay().get()
@@ -52,7 +75,7 @@ async def novas():
     return {"message": "getting novas notas to database"}
 
 
-@app.get("/manifestar", status_code=202, tags=["info"])
+# @app.get("/manifestar", status_code=202, tags=["info"])
 async def manifestar_notas(year: int = None, month: int = None):
     today = datetime.now()
     curr_year = today.year
@@ -63,12 +86,12 @@ async def manifestar_notas(year: int = None, month: int = None):
         month = curr_month
     notas = await manifestar(year, month)
     logger.info("Notas: %s", notas)
-    return {"Message": "Accepted"}
+    return {"result": "accepted"}
 
 
 @app.get("/filtrar_notas", status_code=202, tags=["info"])
 async def filtrar_notas(params: NfeQueryParams = Depends()):
-    logger.info("Calling /")
+    logger.info("Calling /filtra_notas")
     session = get_session()
     if params.nome:
         params.nome = params.nome.upper()
@@ -84,27 +107,35 @@ async def filtrar_notas(params: NfeQueryParams = Depends()):
     return query
 
 
-@app.get("/get_completa", status_code=202, tags=["info"])
+# @app.get("/get_completa", status_code=202, tags=["info"])
 async def completa():
     return download_completa()
 
 
-@app.get("/test_chave", status_code=202, tags=["info"])
+# @app.get("/test_chave", status_code=202, tags=["info"])
 async def test_chave(chave: str):
     # chave = "35230871998819000138550010000022771002245280"
     return test_get_chave(chave)
 
 
-@app.get("/add_certificados", status_code=202, tags=["info"])
+# @app.get("/add_certificados", status_code=202, tags=["info"])
 async def certificados():
     novos_certificados()
 
 
-@app.get("/atualizar_notas_baixadas", status_code=202, tags=["info"])
+# @app.get("/atualizar_notas_baixadas", status_code=202, tags=["info"])
 async def atualizad_notas():
     folders = ["resumida", "completa"]
     for folder in folders:
         insert_xml_from_folder(os.path.join(os.getcwd(), "xml", folder))
+
+
+@app.post("/mudar_desbravador_por_chave", status_code=202, tags=["change"])
+# chave_desbravador_dict: dict[str, bool] = []
+async def mudar_desbravador_por_chave(
+    chaves_list: Annotated[str, "Lista separada por virgulas de chaves para mudar"]
+):
+    return update_notas_desbravador(chaves_list.split(","))
 
 
 if __name__ == "__main__":

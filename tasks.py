@@ -27,7 +27,7 @@ logger = get_task_logger(__name__)
 app = Celery(
     "tasks", backend=os.environ["BACKEND_URL"], broker=os.environ["BROKER_URL"]
 )
-cwd = os.getcxwd()
+cwd = os.getcwd()
 
 app.conf.update(
     task_serializer="json",
@@ -106,7 +106,7 @@ def novas_notas():
                         # with Session() as session:
                         #     session.add(nota)
                 write_ult_nsu(session, ult_nsu, cnpj)
-                
+
     return ult_nsu, xmls, notas
 
 
