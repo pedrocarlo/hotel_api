@@ -5,12 +5,14 @@ from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-from db.schemas import NfeQueryParams
+from db.schemas import NfeQueryParams, UserRequest, UserResponse
 from db.sql import (
     get_general,
     get_session,
     insert_xml_from_folder,
     update_notas_desbravador,
+    login_username,
+    login_token,
 )
 
 # from db.schemas import NfeQueryParams
@@ -57,38 +59,6 @@ app.add_middleware(
 )
 
 
-# @app.get("/", status_code=202, tags=["info"])
-# async def root():
-#     logger.info("Calling /")
-#     ult_nsu, xmls, notas = test.delay().get()
-#     # logger.info("%s", notas)
-#     # logger.info("%s", ult_nsu)
-#     return {"message": "Adding files to database"}
-
-
-# @app.get("/novas_notas", status_code=202, tags=["info"])
-async def novas():
-    logger.info("Calling /novas_notas")
-    ult, xmls, notas = novas_notas.delay().get()
-    logger.info("XMLS: \n%s", xmls)
-    # logger.info("%s", ult_nsu)
-    return {"message": "getting novas notas to database"}
-
-
-# @app.get("/manifestar", status_code=202, tags=["info"])
-async def manifestar_notas(year: int = None, month: int = None):
-    today = datetime.now()
-    curr_year = today.year
-    curr_month = today.month
-    if year is None:
-        year = curr_year
-    if month is None:
-        month = curr_month
-    notas = await manifestar(year, month)
-    logger.info("Notas: %s", notas)
-    return {"result": "accepted"}
-
-
 @app.get("/filtrar_notas", status_code=202, tags=["info"])
 async def filtrar_notas(params: NfeQueryParams = Depends()):
     logger.info("Calling /filtra_notas")
@@ -107,35 +77,62 @@ async def filtrar_notas(params: NfeQueryParams = Depends()):
     return query
 
 
-# @app.get("/get_completa", status_code=202, tags=["info"])
-async def completa():
-    return download_completa()
-
-
-# @app.get("/test_chave", status_code=202, tags=["info"])
-async def test_chave(chave: str):
-    # chave = "35230871998819000138550010000022771002245280"
-    return test_get_chave(chave)
-
-
-# @app.get("/add_certificados", status_code=202, tags=["info"])
-async def certificados():
-    novos_certificados()
-
-
-# @app.get("/atualizar_notas_baixadas", status_code=202, tags=["info"])
-async def atualizad_notas():
-    folders = ["resumida", "completa"]
-    for folder in folders:
-        insert_xml_from_folder(os.path.join(os.getcwd(), "xml", folder))
-
-
 @app.post("/mudar_desbravador_por_chave", status_code=202, tags=["change"])
-# chave_desbravador_dict: dict[str, bool] = []
 async def mudar_desbravador_por_chave(
     chaves_list: Annotated[str, "Lista separada por virgulas de chaves para mudar"]
 ):
     return update_notas_desbravador(chaves_list.split(","))
+
+
+@app.post("/login", status_code=202, tags=["login"])
+async def login(login_request: UserRequest) -> UserResponse:
+    user = None
+    login_info, token = login_request.login_info, login_request.token
+    if login_info is None and token is None:
+        return UserResponse(
+            success=False, token=None, err="Nenhuma informação de login recebida"
+        )
+    if token is not None:
+        user = login_token(token)
+    elif login_info is not None:
+        user = login_username(login_info.username, login_info.hash_password)
+    if user is None:
+        return {
+            "success": False,
+            "err": "Não foi possível identicar o usuário",
+        }
+    else:
+        return {
+            "success": True,
+            "token": user.token,
+            "admin": True if user.admin else None,
+        }
+
+
+# @app.post("/add_user", status_code=202, tags=["login"])
+async def add_user(login_request: UserRequest) -> UserResponse:
+    user = None
+    login_info, token = login_request.login_info, login_request.token
+    if token is None:
+        return UserResponse(
+            success=False,
+            token=None,
+            err="Deve se passar token ativo para essa operação",
+        )
+    else:
+        user = login_token(token)
+    if user is None:
+        return {
+            "success": False,
+            "err": "Não foi possível identicar o usuário",
+        }
+    # Continuar aqui adicionar
+
+    # else:
+    # return {
+    #     "success": True,
+    #     "token": user.token,
+    # }
 
 
 if __name__ == "__main__":
